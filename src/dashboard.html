@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة التحكم - متجر الإلكترونيات</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <header>
+        <h1>لوحة التحكم</h1>
+        <nav>
+            <ul>
+                <li><a href="index.html">الرئيسية</a></li>
+                <li><a href="#" onclick="logoutUser()">تسجيل الخروج</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <section id="dashboard-content">
+            <h2 id="welcome-message">مرحباً بك في لوحة التحكم!</h2> 
+            
+            <p>هنا يمكنك إدارة طلباتك الأخيرة والاطلاع على سجل المشتريات.</p>
+            
+            <h3>معلومات الحساب:</h3>
+            <p id="user-info">اسم المستخدم: (جاري التحميل...)</p>
+            
+            <button onclick="testSession()">اختبار صلاحية الجلسة</button>
+            
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 2025 متجر الإلكترونيات. جميع الحقوق محفوظة.</p>
+    </footer>
+
+    <script src="js/script.js"></script>
+
+   <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // إذا لم تنجح checkSessionValidity()، سيتم التوجيه إلى login.html
+        if (checkSessionValidity()) {
+            const username = localStorage.getItem('sessionUser');
+            document.getElementById('welcome-message').textContent = `مرحباً بك، ${username}!`;
+            document.getElementById('user-info').textContent = `اسم المستخدم: ${username}`;
+        } else {
+            // إضافة هذا السطر يضمن التوجيه الفوري
+            window.location.href = 'login.html';
+        }
+    });
+
+    function testSession() {
+        alert(checkSessionValidity() ? "الجلسة صالحة." : "الجلسة منتهية.");
+    }
+</script>
+</body>
+</html>
