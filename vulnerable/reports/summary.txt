@@ -1,0 +1,1 @@
+Quarterly security summary: 3 findings, 0 critical.

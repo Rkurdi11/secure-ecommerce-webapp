@@ -1,106 +1,68 @@
-# Secure E-Commerce Web Application & Web Vulnerability Assessment
+# Web Security DAST — Path Traversal & Cookie Security with OWASP ZAP
 
-A university course project with two parts: **(1)** a small e-commerce web
-application built with secure front-end coding practices, and **(2)** a
-hands-on assessment of four common web vulnerabilities using the PortSwigger
-Web Security Academy, documented with risk ratings and remediation guidance.
+A dynamic application security testing (DAST) lab: using **OWASP ZAP** to
+discover, manually confirm, and then **fix** two web vulnerabilities in a small
+Flask service — **Path Traversal (CWE-22)** and insecure session cookies.
+(Course: CECY481)
 
 > **Author:** Rayan Kurdi — BSc Cybersecurity, University of Jeddah
-> **Tools:** HTML, CSS, JavaScript, Burp Suite, PortSwigger Web Security Academy
+> **Environment:** Kali Linux (UTM, Apple Silicon) · OWASP ZAP 2.17.0 · Flask
+> **Skills:** DAST · OWASP ZAP · path traversal · secure cookies · passive vs active testing · secure coding & verification
 
----
+## The workflow
 
-## Overview
+1. **Passive observation (A1).** Browsed the app through the ZAP proxy and
+   inspected the recorded traffic. The `Set-Cookie: session=...; Path=/` header
+   had **no `Secure`, `HttpOnly`, or `SameSite`** attributes.
+2. **Active manual test (A2).** Sent a crafted request
+   `/report?name=../private.txt`. It returned **200 OK with the contents of
+   `private.txt`** — a file outside the intended `reports/` directory — proving
+   arbitrary file read (CWE-22).
+3. **DAST correlation (A3).** ZAP's passive scanner raised 5 alerts (missing
+   HttpOnly/SameSite, version leak, missing `X-Content-Type-Options`, session
+   cookie). Note: passive scanning **did not** find the path traversal, because
+   it never sends `../` payloads — only **manual active testing** proved it.
+4. **Fix & verify (A4).** Rewrote the app and re-tested: traversal now returns
+   **403 Forbidden** and the cookie is issued with `Secure; HttpOnly; SameSite=Strict`.
 
-The goal of the project was to practice both sides of application security:
-writing code with defensive controls in mind, and then studying how the matching
-attacks work and how to remediate them. The vulnerabilities were exploited in the
-**deliberately vulnerable PortSwigger labs** (a safe, legal training environment),
-not against the demo application or any live system.
+## Vulnerable vs fixed
 
-## Repository structure
+| | Before | After |
+|---|--------|-------|
+| `name=summary.txt` | 200 OK | 200 OK |
+| `name=../private.txt` | **200 OK — leaks private.txt** | **403 Forbidden** |
+| Cookie | `session=...; Path=/` | `session=...; Secure; HttpOnly; SameSite=Strict` |
 
-```
-.
-├── src/                         # The secure demo e-commerce application
-│   ├── index.html               # Storefront / landing page
-│   ├── login.html               # Login + registration forms
-│   ├── dashboard.html           # Authenticated area (session-protected)
-│   ├── css/style.css            # Styling (responsive)
-│   └── js/script.js             # Input sanitization + session management
-├── docs/
-│   ├── vulnerability-assessment.md         # Full write-up (this project's core)
-│   ├── risk-and-remediation-report.pdf     # Original risk report
-│   ├── portswigger-attacks-original.pdf    # Original lab notes
-│   └── screenshots/             # (add your Burp Suite screenshots here)
-└── README.md
-```
+- [`vulnerable/app.py`](vulnerable/app.py) — the original flawed service.
+- [`fixed/app.py`](fixed/app.py) — hardened version.
 
-## Part 1 — Secure web application
+## The fix (defense in depth)
+- **Allowlist** — only approved report names are served; anything else → 403.
+- **Containment check** — resolve the path and require `is_relative_to(REPORTS_DIR)`,
+  so `../` cannot escape even if the allowlist were widened.
+- **Secure cookie** — `secure=True, httponly=True, samesite="Strict"`.
 
-A multi-page storefront demonstrating defensive front-end controls:
-
-- **Input sanitization** — user input is trimmed and HTML-escaped (`<`, `>`, `'`, `"`)
-  before use, to reduce XSS exposure (`sanitizeString()`).
-- **Typed validation** — phone numbers are stripped to digits and length-checked
-  (`sanitizePhoneNumber()`).
-- **Session management** — sessions carry a token and a **30-minute expiration**;
-  expired or missing sessions are destroyed and the user is redirected to login
-  (`createSecureSession()`, `checkSessionValidity()`).
-- **Protected pages** — the dashboard verifies session validity on load and
-  redirects unauthenticated users away.
-
-### Scope & limitations (by design)
-
-This is a **front-end educational demo**. All validation and session logic run
-client-side, which is inherently bypassable and is **not** a real security
-boundary. In production, every control shown here must be enforced **server-side**
-(parameterized queries, server-set `HttpOnly` + `Secure` cookies, server-verified
-sessions, password hashing with bcrypt/Argon2). Documenting this limitation is
-part of the exercise.
-
-## Part 2 — Web vulnerability assessment
-
-Four vulnerability classes were exploited in PortSwigger labs using Burp Suite to
-intercept and modify requests, then rated and paired with remediations. Full
-details, payloads, and fixes are in
-[`docs/vulnerability-assessment.md`](docs/vulnerability-assessment.md).
-
-| # | Vulnerability | Technique | Risk |
-|---|---------------|-----------|------|
-| 1 | SQL Injection — authentication bypass | `administrator'--` in the username | **High** |
-| 2 | SQL Injection — hidden data retrieval | `'+OR+1=1--` in a category filter | **High** |
-| 3 | Reflected XSS | `<script>alert(1)</script>` in a search field | **Medium** |
-| 4 | Broken access control | Tampering an `Admin=false` cookie to `Admin=true` | **Medium** |
-
-### Remediation summary
-
-- **SQL Injection** → parameterized queries (prepared statements), strict input
-  validation, least-privilege DB accounts.
-- **XSS** → context-aware output encoding, `Content-Security-Policy`.
-- **Broken access control** → enforce authorization server-side; never trust
-  client-supplied role values.
-- **Session/cookie flaws** → `HttpOnly` + `Secure` flags, unpredictable tokens,
-  short expiry.
-
-## Skills demonstrated
-
-Web application security · Burp Suite · OWASP Top 10 (injection, XSS, access
-control) · secure coding · vulnerability assessment · risk rating · remediation
-reporting.
-
-## How to run the demo
-
-Open `src/index.html` in a browser, or serve the folder locally:
+## Run
 
 ```bash
-cd src
-python3 -m http.server 8000
-# then visit http://localhost:8000
+cd fixed            # or: cd vulnerable  (to reproduce the flaw)
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python3 app.py      # serves on http://127.0.0.1:5000
+
+# normal:    curl -i "http://127.0.0.1:5000/report?name=summary.txt"
+# traversal: curl -i "http://127.0.0.1:5000/report?name=../private.txt"
 ```
+
+Full write-up with ZAP screenshots:
+[`docs/CECY481-Lab6-ZAP-report.pdf`](docs/CECY481-Lab6-ZAP-report.pdf).
+
+## Key takeaway
+Automated DAST (ZAP passive scan) shows **where to look**, but manual active
+testing is what **proves** a flaw like path traversal and its impact — and a good
+fix combines an allowlist with a path-containment check as defense in depth.
 
 ---
 
-*Created as a Cybersecurity course project at the University of Jeddah. The
-offensive testing was performed only against PortSwigger's authorized training
-labs.*
+*All testing targeted a local service on `127.0.0.1` only; `private.txt` holds a
+fake training token, not a real secret.*
